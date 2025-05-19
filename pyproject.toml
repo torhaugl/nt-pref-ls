@@ -1,6 +1,6 @@
 [project]
 name = "nt-pref-ls"
-version = "0.0.2"
+version = "0.1.0"
 description = "N-Triples language server that resolves skos:prefLabel"
 requires-python = ">=3.10"
 
@@ -13,3 +13,6 @@ dependencies = [
 [project.scripts]
 nt-pref-ls = "nt_pref_ls.server:start_io"
 
+[tool.setuptools.packages.find]
+where    = ["."]
+exclude  = ["figs*", "tests*"]

@@ -28,7 +28,7 @@ log = logging.getLogger("nt_pref_ls")
 class NtPrefLanguageServer(LanguageServer):
     """Minimal pygls‐based server fulfilling """
     def __init__(self):
-        super().__init__("nt-pref-ls", "0.0.2")
+        super().__init__("nt-pref-ls", "0.1.0")
         self._documents: Dict[str, DocumentIndex] = {}
 
 
@@ -48,6 +48,7 @@ def on_initialize(ls: NtPrefLanguageServer, params: types.InitializeParams):
 
     capabilities = types.ServerCapabilities(
         hover_provider=True,
+        inlay_hint_provider=True,
     )
     server_info = types.InitializeResultServerInfoType(
         name = ls.name,
@@ -148,6 +149,41 @@ def _publish_diagnostics(ls: LanguageServer, doc_uri: str, idx: DocumentIndex):
 
     ls.publish_diagnostics(doc_uri, diags)
 
+# ---------------------------------------------------------------------------
+# Inlay-hint handler
+# ---------------------------------------------------------------------------
+
+@ls.feature(types.TEXT_DOCUMENT_INLAY_HINT)
+def on_inlay_hint(
+    ls: NtPrefLanguageServer,
+    params: types.InlayHintParams
+) -> list[types.InlayHint] | None:
+
+    idx = ls._documents.get(params.text_document.uri)
+    if idx is None:
+        return None
+
+    # Convert the requested range to Python ints
+    start_line = params.range.start.line
+    end_line   = params.range.end.line
+
+    hints: list[types.InlayHint] = []
+
+    for line in range(start_line, end_line + 1):
+        for start, end, uri in idx.ranges.get(line, []):
+            label = idx.labels.get(uri)
+            if not label:
+                continue          # skip un-labelled IRIs
+
+            hints.append(
+                types.InlayHint(
+                    position=types.Position(line=line, character=end),  # show after ">"
+                    label=label,
+                    padding_left=True,
+                )
+            )
+
+    return hints
 # ---------------------------------------------------------------------------
 # Entry-points
 # ---------------------------------------------------------------------------
