@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Dict
 
 from pygls.server import LanguageServer
+from pygls import protocol
 from lsprotocol import types
 
 from .indexer import build as build_index, DocumentIndex, uri_at
@@ -27,7 +28,7 @@ log = logging.getLogger("nt_pref_ls")
 class NtPrefLanguageServer(LanguageServer):
     """Minimal pygls‐based server fulfilling """
     def __init__(self):
-        super().__init__("nt-pref-ls", "0.0.1")
+        super().__init__("nt-pref-ls", "0.0.2")
         self._documents: Dict[str, DocumentIndex] = {}
 
 
@@ -49,8 +50,8 @@ def on_initialize(ls: NtPrefLanguageServer, params: types.InitializeParams):
         hover_provider=True,
     )
     server_info = types.InitializeResultServerInfoType(
-        name = "nt-pref-ls",
-        version = "0.0.1",
+        name = ls.name,
+        version = ls.version,
     )
     return types.InitializeResult(capabilities=capabilities, server_info=server_info)
 
@@ -72,8 +73,26 @@ def on_did_open(ls: NtPrefLanguageServer, params: types.DidOpenTextDocumentParam
         len(idx.uris), len(idx.labels), uri
     )
 
+    _publish_diagnostics(ls, params.text_document.uri, idx)
+
+
 # ---------------------------------------------------------------------------
-#                           Hover handler (M2)
+# Re-index on every full-content change (simple but effective)
+# ---------------------------------------------------------------------------
+
+@ls.feature(types.TEXT_DOCUMENT_DID_CHANGE)
+def on_did_change(ls: NtPrefLanguageServer, params: types.DidChangeTextDocumentParams):
+    if not params.content_changes:
+        return
+
+    new_text = params.content_changes[0].text      # we assume full text change
+    idx = build_index(new_text)
+    ls._documents[params.text_document.uri] = idx
+
+    _publish_diagnostics(ls, params.text_document.uri, idx)
+
+# ---------------------------------------------------------------------------
+#                           Hover handler
 # ---------------------------------------------------------------------------
 
 @ls.feature(types.TEXT_DOCUMENT_HOVER)
@@ -100,6 +119,34 @@ def on_hover(ls: NtPrefLanguageServer, params: types.HoverParams):
             end=types.Position(line=pos.line, character=pos.character + len(str(hit)) + 2),
         ),
     )
+
+# ---------------------------------------------------------------------------
+# Diagnostics helper
+# ---------------------------------------------------------------------------
+
+def _publish_diagnostics(ls: LanguageServer, doc_uri: str, idx: DocumentIndex):
+    diags: list[types.Diagnostic] = []
+
+    for uri_ref in idx.uris:
+        if uri_ref in idx.labels:
+            continue                                  # has a label ⇒ no warning
+
+        line, char = idx.first_pos[uri_ref]
+        end_char   = char + len(f"<{uri_ref}>")
+
+        diags.append(
+            types.Diagnostic(
+                range=types.Range(
+                    start=types.Position(line=line, character=char),
+                    end=types.Position(line=line, character=end_char),
+                ),
+                severity=types.DiagnosticSeverity.Hint,
+                source="nt-pref-ls",
+                message=f"No skos:prefLabel defined for <{uri_ref}> in this file",
+            )
+        )
+
+    ls.publish_diagnostics(doc_uri, diags)
 
 # ---------------------------------------------------------------------------
 # Entry-points

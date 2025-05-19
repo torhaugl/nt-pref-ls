@@ -1,6 +1,6 @@
 [project]
 name = "nt-pref-ls"
-version = "0.0.1"
+version = "0.0.2"
 description = "N-Triples language server that resolves skos:prefLabel"
 requires-python = ">=3.10"
 

@@ -15,6 +15,7 @@ class DocumentIndex:
     uris:   Set[URIRef]       = field(default_factory=set)  # every uri seen
     ranges: Dict[int, List[Tuple[int, int, URIRef]]] = field(default_factory=dict)
     #            ↑line-nr       ↑(start, end, uri)  per line
+    first_pos: Dict[URIRef, Tuple[int, int]] = field(default_factory=dict) # uri → (line, start)
 
 IRI_RE = re.compile(r"<([^>]+)>")
 
@@ -38,6 +39,7 @@ def build(text: str) -> DocumentIndex:
         for m in IRI_RE.finditer(line):
             uri = URIRef(m.group(1))
             idx.ranges.setdefault(lineno, []).append((m.start(), m.end(), uri))
+            idx.first_pos.setdefault(uri, (lineno, m.start()))
 
     return idx
 
