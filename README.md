@@ -13,30 +13,41 @@ Install as a python package, e.g.,
 ```sh
 pip install git+https://github.com/torhaugl/nt-pref-ls.git
 ```
+Ideally, install it with `pipx` so that the command is always available, even
+from virtual environments.
 
 ## Neovim setup
 
-Add this snippet to `init.lua` or equivalent:
+As of Neovim 0.11, language servers can be configured by making a file
+`.config/nvim/lsp/nt_pref_ls.lua` with this snippet inside:
 ```lua
-local client = vim.lsp.start_client {
-  name = 'nt_pref_ls',
+return {
   cmd = { 'nt-pref-ls' },
+  filetypes = { 'nt' },
 }
-
-vim.api.nvim_create_autocmd('FileType', {
-  pattern = 'nt',
-  callback = function()
-    vim.lsp.buf_attach_client(0, client)
-  end,
-})
-
--- neovim does not recognize nt files, add it here
+```
+In addition, you can enable your Neovim to start the LSP whenerver it enters a
+`.nt` file with this snippet in your `init.lua` or equivalent:
+```lua
+-- neovim does not recognize .nt files, add it here
 vim.filetype.add { extension = { nt = 'nt' } }
 
--- add a key to toggle inlay hints
+vim.lsp.enable { 'nt_pref_ls' }
+```
+
+The hover functionality is accessed with 'K' in Normal mode by default. In
+addition, it is useful to add keybinds to enable hints or virtual lines:
+```lua
+-- Toggle virtual hints and lines
 vim.keymap.set('n', '<leader>th', function()
   vim.lsp.inlay_hint.enable(not vim.lsp.inlay_hint.is_enabled { bufnr = 0 })
 end, { desc = '[T]oggle Inlay [H]ints' })
+
+vim.keymap.set('n', '<leader>tv', function()
+  local current = vim.diagnostic.config().virtual_lines
+  vim.diagnostic.config { virtual_lines = not current }
+end, { desc = '[T]oggle [V]irtual Lines' })
+
 ```
 
 ## Example
